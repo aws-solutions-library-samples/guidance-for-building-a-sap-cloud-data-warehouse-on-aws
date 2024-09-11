@@ -1,0 +1,778 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "CloudFormation Template to deploy Redshift step function for incremental load"
+Resources:
+  StateMachineOrchRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Description : IAM Role for the state machine in step function to run
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - !Sub 'states.${AWS::Region}.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: RedshiftBatchDataApiPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'redshift-data:BatchExecuteStatement'
+                  - 'redshift-data:ListStatements'
+                  - 'redshift-data:GetStatementResult'
+                  - 'redshift-data:DescribeStatement'
+                  - 'redshift-data:ExecuteStatement'
+                Resource:
+                  - !Sub 'arn:aws:redshift:${AWS::Region}:${AWS::AccountId}:cluster:sap-fabric-cluster-${AWS::AccountId}'
+                  - !Sub 'arn:aws:redshift:${AWS::Region}:${AWS::AccountId}:dbname:sap-fabric-cluster-${AWS::AccountId}/sap_fabric_db'
+                  - !Sub 'arn:aws:redshift:${AWS::Region}:${AWS::AccountId}:dbuser:sap-fabric-cluster-${AWS::AccountId}/sapuser'
+              - Effect: Allow
+                Action:
+                  - 'redshift:GetClusterCredentials'
+                Resource:
+                  - !Sub 'arn:aws:redshift:${AWS::Region}:${AWS::AccountId}:cluster:sap-fabric-cluster-${AWS::AccountId}'
+                  - !Sub 'arn:aws:redshift:${AWS::Region}:${AWS::AccountId}:dbname:sap-fabric-cluster-${AWS::AccountId}/sap_fabric_db'
+                  - !Sub 'arn:aws:redshift:${AWS::Region}:${AWS::AccountId}:dbuser:sap-fabric-cluster-${AWS::AccountId}/sapuser'
+  RedshiftOrchStepFunction:
+    Type: 'AWS::StepFunctions::StateMachine'
+    DependsOn: StateMachineOrchRole
+    Properties:
+      StateMachineName: Redshift-load-procure-to-pay
+      DefinitionString: !Sub 
+        - |-   
+          {
+          "Comment": "ETL workflow for loading p2p",
+          "StartAt": "CheckTableExists",
+          "States": {
+            "CheckTableExists": {
+              "Type": "Task",
+              "Parameters": {
+                "ClusterIdentifier": "${RedshiftClusterIdentifier}",
+                "Database": "sap_fabric_db",
+                "DbUser": "sapuser",
+                "Sql": "SELECT 1 FROM sap_fabric_p2p_adm.purch_order_analysis LIMIT 1"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 60,
+                  "MaxAttempts": 5
+                }
+              ],
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+              "ResultPath": "$.sql_output",
+              "Next": "wait_on_check"
+            },
+            "wait_on_check": {
+              "Comment": "Wait before status check",
+              "Type": "Wait",
+              "Seconds": 15,
+              "Next": "check_result"
+            },
+            "check_result": {
+              "Comment": "Check Task Status",
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:describeStatement",
+              "ResultPath": "$.sql_output",
+              "Parameters": {
+                "Id.$": "$.sql_output.Id"
+              },
+              "Next": "is_check_complete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 2
+                }
+              ]
+            },
+            "is_check_complete": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FAILED",
+                  "Next": "repeat_if_not_exist"
+                },
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FINISHED",
+                  "Next": "run_matr_attr_table"
+                }
+              ],
+              "Default": "wait_on_check"
+            },
+            "repeat_if_not_exist": {
+              "Type": "Wait",
+              "Seconds": 30,
+              "Next": "CheckTableExists"
+            },
+            "run_matr_attr_table": {
+              "Comment": "Load 2 dimension tables",
+              "Type": "Parallel",
+              "ResultPath": "$.sql_output",
+              "Branches": [
+                {
+                  "StartAt": "Load_Master_Data_All",
+                  "States": {
+                    "Load_Master_Data_All": {
+                      "Comment": "Load Item Table",
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+                      "ResultPath": "$.sql_output",
+                      "Parameters": {
+                        "ClusterIdentifier": "${RedshiftClusterIdentifier}",
+                        "Database": "sap_fabric_db",
+                        "Sql": "call public.sp_fullload_sync_masterdata()",
+                        "DbUser": "sapuser"
+                      },
+                      "Next": "wait_on_master_data_all",
+                      "Retry": [
+                        {
+                          "ErrorEquals": [
+                            "States.ALL"
+                          ],
+                          "IntervalSeconds": 60,
+                          "MaxAttempts": 10,
+                          "BackoffRate": 2
+                        }
+                      ]
+                    },
+                    "wait_on_master_data_all": {
+                      "Comment": "Wait before status check",
+                      "Type": "Wait",
+                      "Seconds": 15,
+                      "Next": "load_master_data_all_table_status_check"
+                    },
+                    "load_master_data_all_table_status_check": {
+                      "Comment": "Check Task Status",
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:describeStatement",
+                      "ResultPath": "$.sql_output",
+                      "Parameters": {
+                        "Id.$": "$.sql_output.Id"
+                      },
+                      "Next": "is_load_customer_master_data_all_table_complete",
+                      "Retry": [
+                        {
+                          "ErrorEquals": [
+                            "States.ALL"
+                          ],
+                          "BackoffRate": 2,
+                          "IntervalSeconds": 3,
+                          "MaxAttempts": 2
+                        }
+                      ]
+                    },
+                    "is_load_customer_master_data_all_table_complete": {
+                      "Comment": "check if load_item_table_complete step is complete",
+                      "Type": "Choice",
+                      "Choices": [
+                        {
+                          "Variable": "$.sql_output.Status",
+                          "StringEquals": "FAILED",
+                          "Next": "load_master_data_all_table_failed"
+                        },
+                        {
+                          "Variable": "$.sql_output.Status",
+                          "StringEquals": "FINISHED",
+                          "Next": "load_master_data_all_table_succeeded"
+                        }
+                      ],
+                      "Default": "wait_on_master_data_all"
+                    },
+                    "load_master_data_all_table_succeeded": {
+                      "Type": "Pass",
+                      "Result": "load_fact_sales_pipeline_success",
+                      "End": true
+                    },
+                    "load_master_data_all_table_failed": {
+                      "Type": "Fail",
+                      "Cause": "customer_master table load failed",
+                      "Error": "Error"
+                    }
+                  }
+                },
+                {
+                  "StartAt": "Load_Material_Attribute_Table",
+                  "States": {
+                    "Load_Material_Attribute_Table": {
+                      "Comment": "Load Customer Address Table",
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+                      "ResultPath": "$.sql_output",
+                      "Parameters": {
+                        "ClusterIdentifier": "${RedshiftClusterIdentifier}",
+                        "Database": "sap_fabric_db",
+                        "Sql": "call public.sp_incremental_sync_material_attr()",
+                        "DbUser": "sapuser"
+                      },
+                      "Next": "wait_on_load_matr_attr_table",
+                      "Retry": [
+                        {
+                          "ErrorEquals": [
+                            "States.ALL"
+                          ],
+                          "IntervalSeconds": 60,
+                          "MaxAttempts": 10,
+                          "BackoffRate": 2
+                        }
+                      ]
+                    },
+                    "wait_on_load_matr_attr_table": {
+                      "Comment": "Wait before status check",
+                      "Type": "Wait",
+                      "Seconds": 15,
+                      "Next": "load_matr_attr_table_status_check"
+                    },
+                    "load_matr_attr_table_status_check": {
+                      "Comment": "Check Task Status",
+                      "Type": "Task",
+                      "Resource": "arn:aws:states:::aws-sdk:redshiftdata:describeStatement",
+                      "ResultPath": "$.sql_output",
+                      "Parameters": {
+                        "Id.$": "$.sql_output.Id"
+                      },
+                      "Next": "is_load_matr_attr_table_complete",
+                      "Retry": [
+                        {
+                          "ErrorEquals": [
+                            "States.ALL"
+                          ],
+                          "BackoffRate": 2,
+                          "IntervalSeconds": 3,
+                          "MaxAttempts": 2
+                        }
+                      ]
+                    },
+                    "is_load_matr_attr_table_complete": {
+                      "Comment": "check if load_customer_address_table step is complete",
+                      "Type": "Choice",
+                      "Choices": [
+                        {
+                          "Variable": "$.sql_output.Status",
+                          "StringEquals": "FAILED",
+                          "Next": "load_matr_master_table_failed"
+                        },
+                        {
+                          "Variable": "$.sql_output.Status",
+                          "StringEquals": "FINISHED",
+                          "Next": "load_matr_attr_table_success"
+                        }
+                      ],
+                      "Default": "wait_on_load_matr_attr_table"
+                    },
+                    "load_matr_attr_table_success": {
+                      "Type": "Pass",
+                      "Result": "load_customer_address_table_success",
+                      "End": true
+                    },
+                    "load_matr_master_table_failed": {
+                      "Type": "Fail",
+                      "Cause": "Failure on load customer_address table",
+                      "Error": "Error"
+                    }
+                  }
+                }
+              ],
+              "Next": "load_material_text"
+            },
+            "load_material_text": {
+              "Type": "Task",
+              "Parameters": {
+                "ClusterIdentifier": "${RedshiftClusterIdentifier}",
+                "Database": "sap_fabric_db",
+                "Sql": "call public.sp_incremental_sync_material_text()",
+                "DbUser": "sapuser"
+              },
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+              "Next": "wait_on_material_text",
+              "ResultPath": "$.sql_output",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 60,
+                  "MaxAttempts": 5
+                }
+              ]
+            },
+            "wait_on_material_text": {
+              "Comment": "Wait before status check",
+              "Type": "Wait",
+              "Seconds": 15,
+              "Next": "load_material_text_check"
+            },
+            "load_material_text_check": {
+              "Comment": "Check Task Status",
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:describeStatement",
+              "ResultPath": "$.sql_output",
+              "Parameters": {
+                "Id.$": "$.sql_output.Id"
+              },
+              "Next": "is_load_material_text_complete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 2
+                }
+              ]
+            },
+            "is_load_material_text_complete": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FAILED",
+                  "Next": "load_material_text_failed"
+                },
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FINISHED",
+                  "Next": "load_material_text_succeeded"
+                }
+              ],
+              "Default": "wait_on_material_text"
+            },
+            "load_material_text_succeeded": {
+              "Type": "Pass",
+              "Next": "load_vendor_attr"
+            },
+            "load_vendor_attr": {
+              "Type": "Task",
+              "Parameters": {
+                "ClusterIdentifier": "${RedshiftClusterIdentifier}",
+                "Database": "sap_fabric_db",
+                "Sql": "call public.sp_incremental_sync_vendor_attr()",
+                "DbUser": "sapuser"
+              },
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+              "Next": "wait_on_vendor_attr.",
+              "ResultPath": "$.sql_output",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 60,
+                  "MaxAttempts": 5
+                }
+              ]
+            },
+            "wait_on_vendor_attr.": {
+              "Comment": "Wait before status check",
+              "Type": "Wait",
+              "Seconds": 15,
+              "Next": "load_vendor_attr_check"
+            },
+            "load_vendor_attr_check": {
+              "Comment": "Check Task Status",
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:describeStatement",
+              "ResultPath": "$.sql_output",
+              "Parameters": {
+                "Id.$": "$.sql_output.Id"
+              },
+              "Next": "is_vendor_attr_complete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 2
+                }
+              ]
+            },
+            "is_vendor_attr_complete": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FAILED",
+                  "Next": "load_vendor_attr_failed"
+                },
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FINISHED",
+                  "Next": "load_vendor_attr_succeeded"
+                }
+              ],
+              "Default": "wait_on_vendor_attr."
+            },
+            "load_vendor_attr_failed": {
+              "Type": "Fail"
+            },
+            "load_material_text_failed": {
+              "Type": "Fail"
+            },
+            "load_vendor_attr_succeeded": {
+              "Type": "Pass",
+              "Next": "Add_Counter_and_TimeStampS3"
+            },
+            "Add_Counter_and_TimeStampS3": {
+               "Type": "Task",
+               "Resource": "arn:aws:states:::lambda:invoke",
+               "Parameters": {
+                 "Payload.$": "$",
+                 "FunctionName": "Add_Counter_and_TimeStampS3Lambda"
+               },
+               "Retry": [
+                 {
+                   "ErrorEquals": [
+                     "Lambda.ServiceException",
+                     "Lambda.AWSLambdaException",
+                     "Lambda.SdkClientException",
+                     "Lambda.TooManyRequestsException"
+                   ],
+                   "IntervalSeconds": 1,
+                   "MaxAttempts": 3,
+                   "BackoffRate": 2
+                 }
+               ],
+               "Next": "load_poitems"
+             },
+            "load_poitems": {
+              "Type": "Task",
+              "Parameters": {
+                "ClusterIdentifier": "${RedshiftClusterIdentifier}",
+                "Database": "sap_fabric_db",
+                "Sql": "call public.sp_incrementalscd_sync_poitems()",
+                "DbUser": "sapuser"
+              },
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+              "ResultPath": "$.sql_output",
+              "Next": "wait_on_poitems",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 60,
+                  "MaxAttempts": 5
+                }
+              ]
+            },
+            "wait_on_poitems": {
+              "Comment": "Wait before status check",
+              "Type": "Wait",
+              "Seconds": 15,
+              "Next": "load_poitems_check"
+            },
+            "load_poitems_check": {
+              "Comment": "Check Task Status",
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:describeStatement",
+              "ResultPath": "$.sql_output",
+              "Parameters": {
+                "Id.$": "$.sql_output.Id"
+              },
+              "Next": "is_poitems_complete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 2
+                }
+              ]
+            },
+            "is_poitems_complete": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FAILED",
+                  "Next": "load_poitems_failed"
+                },
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FINISHED",
+                  "Next": "load_poitems_succeeded"
+                }
+              ],
+              "Default": "wait_on_poitems"
+            },
+            "load_poitems_succeeded": {
+              "Type": "Pass",
+              "Next": "load_supplierinvoices"
+            },
+            "load_supplierinvoices": {
+              "Type": "Task",
+              "Parameters": {
+                "ClusterIdentifier": "${RedshiftClusterIdentifier}",
+                "Database": "sap_fabric_db",
+                "Sql": "call public.sp_incrementalscd_sync_supplierinvoices()",
+                "DbUser": "sapuser"
+              },
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+              "ResultPath": "$.sql_output",
+              "Next": "wait_on_supplierinvoices",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 60,
+                  "MaxAttempts": 5
+                }
+              ]
+            },
+            "wait_on_supplierinvoices": {
+              "Comment": "Wait before status check",
+              "Type": "Wait",
+              "Seconds": 15,
+              "Next": "load_supplierinvoices_check"
+            },
+            "load_supplierinvoices_check": {
+              "Comment": "Check Task Status",
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:describeStatement",
+              "ResultPath": "$.sql_output",
+              "Parameters": {
+                "Id.$": "$.sql_output.Id"
+              },
+              "Next": "is_supplierinvoices_complete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 3,
+                  "MaxAttempts": 2
+                }
+              ]
+            },
+            "is_supplierinvoices_complete": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FINISHED",
+                  "Next": "load_supplierinvoices_succeeded"
+                },
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FAILED",
+                  "Next": "load_supplierinvoices_failed"
+                }
+              ],
+              "Default": "wait_on_supplierinvoices"
+            },
+            "load_supplierinvoices_succeeded": {
+              "Type": "Pass",
+              "Next": "refresh_purch_order_analysis"
+            },
+            "refresh_purch_order_analysis": {
+              "Type": "Task",
+              "Parameters": {
+                "ClusterIdentifier": "${RedshiftClusterIdentifier}",
+                "Database": "sap_fabric_db",
+                "Sql": "refresh materialized view sap_fabric_p2p_adm.purch_order_analysis",
+                "DbUser": "sapuser"
+              },
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:executeStatement",
+              "ResultPath": "$.sql_output",
+              "Next": "wait_on_refresh_purch_order_analysis",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 60,
+                  "MaxAttempts": 5
+                }
+              ]
+            },
+            "wait_on_refresh_purch_order_analysis": {
+              "Type": "Wait",
+              "Seconds": 15,
+              "Next": "refresh_purch_order_analysis_check"
+            },
+            "refresh_purch_order_analysis_check": {
+              "Comment": "Check Task Status",
+              "Type": "Task",
+              "Resource": "arn:aws:states:::aws-sdk:redshiftdata:describeStatement",
+              "ResultPath": "$.sql_output",
+              "Parameters": {
+                "Id.$": "$.sql_output.Id"
+              },
+              "Next": "is_refresh_purch_order_analysis_complete",
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.ALL"
+                  ],
+                  "BackoffRate": 2,
+                  "IntervalSeconds": 2,
+                  "MaxAttempts": 2
+                }
+              ]
+            },
+            "is_refresh_purch_order_analysis_complete": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FINISHED",
+                  "Next": "Success"
+                },
+                {
+                  "Variable": "$.sql_output.Status",
+                  "StringEquals": "FAILED",
+                  "Next": "load_purch_order_analysis_failed"
+                }
+              ],
+              "Default": "wait_on_refresh_purch_order_analysis"
+            },
+            "Success": {
+              "Type": "Succeed"
+            },
+            "load_supplierinvoices_failed": {
+              "Type": "Fail"
+            },
+            "load_poitems_failed": {
+              "Type": "Fail"
+            },
+            "load_purch_order_analysis_failed": {
+              "Type": "Fail"
+            }
+          }
+          }
+        - RedshiftClusterIdentifier: !Sub 'sap-fabric-cluster-${AWS::AccountId}'
+          RedshiftDbName: 'sap_fabric_db'
+          RedshiftDbUser: 'sapuser'
+      RoleArn: !GetAtt StateMachineOrchRole.Arn
+
+  LambdaInvokeStepFunctionRoleOrch:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "LambdaInvokeStepFunctionRoleOrch-${AWS::AccountId}"
+      Description: IAM Role for lambda to execute the Step Function
+      AssumeRolePolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            -
+              Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+                  - events.amazonaws.com
+              Action:
+                - sts:AssumeRole
+      Path: /
+      Policies:
+          -
+            PolicyName: LambdaInvokePolicy
+            PolicyDocument :
+              Version: 2012-10-17
+              Statement:
+                -
+                  Effect: "Allow"
+                  Action:
+                    - states:StartExecution
+                  Resource: !Ref RedshiftOrchStepFunction
+          -
+            PolicyName: LambdaCloudFormationPolicy
+            PolicyDocument:
+              Version: 2012-10-17
+              Statement:
+                -
+                  Effect: Allow
+                  Action: 
+                    - 's3:PutObject'
+                    - 's3:PutObjectAcl'
+                    - 's3:GetObject'
+                    - 's3:GetObjectAcl'
+                    - 's3:DeleteObject'
+                    - 's3:ListBucket'
+                    - 's3:GetBucketLocation'
+                  Resource:
+                    - !Sub "arn:aws:s3:::cloudformation-custom-resource-response-${AWS::Region}"
+                    - !Sub "arn:aws:s3:::cloudformation-waitcondition-${AWS::Region}"
+                    - !Sub "arn:aws:s3:::cloudformation-custom-resource-response-${AWS::Region}/*"
+                    - !Sub "arn:aws:s3:::cloudformation-waitcondition-${AWS::Region}/*"
+
+  LambdaInvokeStepFunctionOrch:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "LambdaInvokeRedshift-load-p2p-${AWS::AccountId}"
+      Description: Lambda to execute the step function
+      Handler: index.handler
+      Runtime: python3.8
+      Role: !GetAtt 'LambdaInvokeStepFunctionRoleOrch.Arn'
+      Timeout: 60
+      Code:
+        ZipFile: |
+          import boto3
+          import traceback
+          import json
+          import cfnresponse
+          def handler(event, context):
+            print(event)
+            step_function_client = boto3.client('stepfunctions')
+            res = {}
+            if event['RequestType'] != 'Delete':
+                try:
+                    step_function_input = {"comment": "Execute ETL Workflow for Redshift"}
+                    response = step_function_client.start_execution(stateMachineArn=event['ResourceProperties'].get('StepFunctionArn'),
+                                                                    input=json.dumps(step_function_input)
+                                                                   )
+                    print(response)
+                except:
+                    print(traceback.format_exc())
+                    cfnresponse.send(event, context, cfnresponse.FAILED, input)
+                    raise
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, res)
+
+  StartStepFunctionOrch:
+    Type: Custom::LambdaStartStepFunction
+    Properties:
+      ServiceToken: !GetAtt [LambdaInvokeStepFunctionOrch, Arn]
+      StepFunctionArn: !Ref RedshiftOrchStepFunction
+  
+  EventRuleOrch:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName: default
+      EventPattern:
+        source:
+          - aws.states
+        detail-type:
+          - Step Functions Execution Status Change
+        detail:
+          status:
+            - SUCCEEDED
+          stateMachineArn:
+            - !Ref RedshiftOrchStepFunction
+      Name: Trigger_SAP_Analytics_Step_Function2
+      State: ENABLED
+      Targets:
+        - Id: Ida6ce276f-bfb5-486a-a534-f1456cb24585
+          Arn: !Ref RedshiftOrchStepFunction
+          RoleArn: !GetAtt 'LambdaInvokeStepFunctionRoleOrch.Arn'

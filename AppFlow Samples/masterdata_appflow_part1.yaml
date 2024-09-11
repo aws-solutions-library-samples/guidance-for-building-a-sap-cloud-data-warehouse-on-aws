@@ -1,0 +1,928 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Appflow samples for SAP accelerators, masterdata text extraction
+
+##  To use this template, you must have installed the below extractors and created their service as per pre-requisites.  Once you have, simply find and replace the service details for each 
+##  By default this schedules the below flows to run once daily
+##  0CUSTOMER_ATTR    - /sap/opu/odata/sap/ZCUSTOMER_ATTR_SRV/EntityOf0CUSTOMER_ATTR
+##  0CUSTOMER_TEXT    - /sap/opu/odata/sap/ZCUSTOMER_TEXT_SRV/EntityOf0CUSTOMER_TEXT
+##  0CUST_GRP1_TEXT   - /sap/opu/odata/sap/ZCUST_GRP_1_SRV/EntityOf0CUST_GRP1_TEXT
+##  0CUST_GRP2_TEXT   - /sap/opu/odata/sap/ZCUST_GRP_2_SRV/EntityOf0CUST_GRP2_TEXT
+##  0CUST_GRP3_TEXT   - /sap/opu/odata/sap/ZCUST_GRP_3_SRV/EntityOf0CUST_GRP3_TEXT
+##  0CUST_GRP4_TEXT   - /sap/opu/odata/sap/ZCUST_GRP_4_SRV/EntityOf0CUST_GRP4_TEXT
+##  0CUST_GRP5_TEXT   - /sap/opu/odata/sap/ZCUST_GRP_5_SRV/EntityOf0CUST_GRP5_TEXT
+##  0VENDOR_ATTR      - /sap/opu/odata/sap/ZVENDOR_ATTR_SRV/EntityOf0VENDOR_ATTR
+##  0VENDOR_TEXT      - /sap/opu/odata/sap/ZVENDOR_TEXT_SRV/EntityOf0VENDOR_TEXT
+##  0EMPLOYEE_TEXT    - /sap/opu/odata/sap/ZEMPLOYEE_SRV/EntityOf0EMPLOYEE_TEXT
+##  0MATERIAL_ATTR    - /sap/opu/odata/sap/ZMATERIAL_ATTR_SRV/EntityOf0MATERIAL_ATTR
+##  0MATERIAL_TEXT    - /sap/opu/odata/sap/ZMATERIAL_TEXT_SRV/EntityOf0MATERIAL_TEXT 
+##  0MATL_GROUP_TEXT  - /sap/opu/odata/sap/ZMATL_GROUP_SRV/EntityOf0MATL_GROUP_TEXT
+##  0MATL_GRP_1_TEXT  - /sap/opu/odata/sap/ZMATL_GRP_1_SRV/EntityOf0MATL_GRP_1_TEXT
+##  0MATL_GRP_2_TEXT  - /sap/opu/odata/sap/ZMATL_GRP_2_SRV/EntityOf0MATL_GRP_2_TEXT
+##  0MATL_GRP_3_TEXT  - /sap/opu/odata/sap/ZMATL_GRP_3_SRV/EntityOf0MATL_GRP_3_TEXT
+##  0MATL_GRP_4_TEXT  - /sap/opu/odata/sap/ZMATL_GRP_4_SRV/EntityOf0MATL_GRP_4_TEXT
+##  0MATL_GRP_5_TEXT  - /sap/opu/odata/sap/ZMATL_GRP_5_SRV/EntityOf0MATL_GRP_5_TEXT
+
+Parameters:
+  ConnectionName:
+    Description: The name of the SAP source system connection
+    Type: String
+
+  DestinationS3BucketName: 
+    Description: Name of the Destination S3 Bucket
+    Type: String
+
+  DestinationS3BucketPrefix:
+    Description: Prefix in the Destination S3 Bucket (Optional)
+    Type: String
+
+  AppFlowSAPStartTime: 
+    Description: EPOC date of first run for flow
+    Type: Number  
+
+  CustomerAttributes:
+    Description: Object path for CustomerAttributestoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/SAP/ZCUSTOMER_ATTR_SRV/EntityOf0CUSTOMER_ATTR
+
+  CustomerText:
+    Description: Object path for CustomerTexttoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/SAP/ZCUSTOMER_TEXT_SRV/EntityOf0CUSTOMER_TEXT
+
+  CustomerGroup1Text:
+    Description: Object path for Customer Group 1 Text extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/sap/ZCUST_GRP_1_SRV/EntityOf0CUST_GRP1_TEXT
+
+  CustomerGroup2Text:
+    Description: Object path for Customer Group 2 Text extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/sap/ZCUST_GRP_2_SRV/EntityOf0CUST_GRP2_TEXT
+
+  CustomerGroup3Text:
+    Description: Object path for Customer Group 3 Text extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/sap/ZCUST_GRP_3_SRV/EntityOf0CUST_GRP3_TEXT
+
+  CustomerGroup4Text:
+    Description: Object path for Customer Group 4 Text extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/sap/ZCUST_GRP_4_SRV/EntityOf0CUST_GRP4_TEXT
+
+  CustomerGroup5Text:
+    Description: Object path for Customer Group 5 Text extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/sap/ZCUST_GRP_5_SRV/EntityOf0CUST_GRP5_TEXT
+
+  VendorAttributes:
+    Description: Object path for VendorAttributestoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/SAP/ZVENDOR_ATTR_SRV/EntityOf0VENDOR_ATTR
+  
+  VendorText:
+    Description: Object path for VendorTexttoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/SAP/ZVENDOR_TEXT_SRV/EntityOf0VENDOR_TEXT
+
+  EmployeeText:
+    Description: Object path for EmployeeTexttoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/sap/ZEMPLOYEE_SRV/EntityOf0EMPLOYEE_TEXT
+  
+  MaterialAttributes:
+    Description: Object path for MaterialAttributestoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/SAP/ZMATERIAL_ATTR_SRV/EntityOf0MATERIAL_ATTR
+
+  MaterialText:
+    Description: Object path for MaterialTexttoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/SAP/ZMATERIAL_TEXT_SRV/EntityOf0MATERIAL_TEXT
+
+  MaterialGroupText:
+    Description: Object path for MaterialGroupTexttoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/SAP/ZMATL_GROUP_SRV/EntityOf0MATL_GROUP_TEXT
+
+  MaterialGroup1Text:
+    Description: Object path for MaterialGroup1TexttoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/sap/ZMATL_GRP_1_SRV/EntityOf0MATL_GRP_1_TEXT
+
+  MaterialGroup2Text:
+    Description: Object path for MaterialGroup2TexttoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/sap/ZMATL_GRP_2_SRV/EntityOf0MATL_GRP_2_TEXT
+
+  MaterialGroup3Text:
+    Description: Object path for MaterialGroup3TexttoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/sap/ZMATL_GRP_3_SRV/EntityOf0MATL_GRP_3_TEXT
+
+  MaterialGroup4Text:
+    Description: Object path for MaterialGroup4TexttoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/sap/ZMATL_GRP_4_SRV/EntityOf0MATL_GRP_4_TEXT
+
+  MaterialGroup5Text:
+    Description: Object path for MaterialGroup5TexttoS3 extractor OData Service
+    Type: String
+    Default: /sap/opu/odata/sap/ZMATL_GRP_5_SRV/EntityOf0MATL_GRP_5_TEXT
+
+Resources:        
+  # Customer Attributes
+  CustomerAttributestoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      FlowName: customer_attribute
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0CUSTOMER_ATTR Customer Attributes'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Incremental
+            ## If you wish to extract the transaction data at a different frequency, update here
+            ScheduleExpression: rate(1day)
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:
+            ObjectPath: !Ref CustomerAttributes
+      DestinationFlowConfigList:
+       - ConnectorType: S3
+         DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+               FileType: JSON
+               AggregationConfig:
+                aggregationType: None
+               PrefixConfig: 
+                  PrefixFormat: HOUR
+                  PrefixType: PATH_AND_FILENAME        
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Customer Text
+  CustomerTexttoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      FlowName: customer_text
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0CUSTOMER_TEXT Customer Texts'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Incremental
+            ## If you wish to extract the transaction data at a different frequency, update here
+            ScheduleExpression: rate(1day)        
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:
+            ObjectPath: !Ref CustomerText
+      DestinationFlowConfigList:
+       - ConnectorType: S3
+         DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+               FileType: JSON
+               AggregationConfig:
+                aggregationType: None
+               PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME        
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Customer Group 1
+  CustomerGroup1toS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      ## This is the unique technical name for the flow, ideally name this related to the data being loaded
+      FlowName: customer_group_1
+      FlowStatus: Active
+      Description: 'Pull data from SAP and saves into S3 for 0CUST_GRP1_TEXT'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the masterdata more often than once daily, change the value here
+            ScheduleExpression: rate(1day)
+            ## Ensure your scheduled Start Time is in the future in EPOC format            
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:          
+            ObjectPath: !Ref CustomerGroup1Text      
+      DestinationFlowConfigList:
+      - ConnectorType: S3
+        DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+              FileType: JSON
+              AggregationConfig:
+                aggregationType: None
+              PrefixConfig:
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME                
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Customer Group 2
+  CustomerGroup2toS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      ## This is the unique technical name for the flow, ideally name this related to the data being loaded
+      FlowName: customer_group_2
+      FlowStatus: Active
+      Description: 'Pull data from SAP and saves into S3 for 0CUST_GRP2_TEXT'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the masterdata more often than once daily, change the value here
+            ScheduleExpression: rate(1day)
+            ## Ensure your scheduled Start Time is in the future in EPOC format            
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:           
+            ObjectPath: !Ref CustomerGroup2Text            
+      DestinationFlowConfigList:
+      - ConnectorType: S3
+        DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+              FileType: JSON
+              AggregationConfig:
+                aggregationType: None
+              PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME                 
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Customer Group 3
+  CustomerGroup3toS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      ## This is the unique technical name for the flow, ideally name this related to the data being loaded
+      FlowName: customer_group_3
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0CUST_GRP3_TEXT'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the masterdata more often than once daily, change the value here
+            ScheduleExpression: rate(1day)
+            ## Ensure your scheduled Start Time is in the future in EPOC format            
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:          
+            ObjectPath: !Ref CustomerGroup3Text            
+      DestinationFlowConfigList:
+      - ConnectorType: S3
+        DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+              FileType: JSON
+              AggregationConfig:
+                aggregationType: None
+              PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME                 
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Customer Group 4
+  CustomerGroup4toS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      ## This is the unique technical name for the flow, ideally name this related to the data being loaded
+      FlowName: customer_group_4
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0CUST_GRP4_TEXT'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the masterdata more often than once daily, change the value here
+            ScheduleExpression: rate(1day)
+            ## Ensure your scheduled Start Time is in the future in EPOC format            
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:           
+            ObjectPath: !Ref CustomerGroup4Text           
+      DestinationFlowConfigList:
+      - ConnectorType: S3
+        DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+              FileType: JSON
+              AggregationConfig:
+                aggregationType: None
+              PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME                 
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Customer Group 5
+  CustomerGroup5toS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      ## This is the unique technical name for the flow, ideally name this related to the data being loaded
+      FlowName: customer_group_5
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0CUST_GRP5_TEXT'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the masterdata more often than once daily, change the value here
+            ScheduleExpression: rate(1day)
+            ## Ensure your scheduled Start Time is in the future in EPOC format            
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:          
+            ObjectPath: !Ref CustomerGroup5Text             
+      DestinationFlowConfigList:
+      - ConnectorType: S3
+        DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+              FileType: JSON
+              AggregationConfig:
+                aggregationType: None
+              PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME                 
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Vendor Attributes
+  VendorAttributestoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      FlowName: vendor_attr
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0VENDOR_ATTR Vendor Attributes'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Incremental
+            ## If you wish to extract the transaction data at a different frequency, update here
+            ScheduleExpression: rate(1day)
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:
+            ObjectPath: !Ref VendorAttributes
+      DestinationFlowConfigList:
+       - ConnectorType: S3
+         DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+               FileType: JSON
+               AggregationConfig:
+                aggregationType: None
+               PrefixConfig: 
+                  PrefixFormat: HOUR
+                  PrefixType: PATH_AND_FILENAME        
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Vendor Text
+  VendorTexttoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      FlowName: vendor_text
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0VENDOR_TEXT Vendor Texts'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Incremental
+            ## If you wish to extract the transaction data at a different frequency, update here
+            ScheduleExpression: rate(1day)         
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:
+            ObjectPath: !Ref VendorText
+      DestinationFlowConfigList:
+       - ConnectorType: S3
+         DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+               FileType: JSON
+               AggregationConfig:
+                aggregationType: None
+               PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME        
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Employee Text
+  EmployeeTexttoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      FlowName: employee
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0EMPLOYEE_TEXT Employee Texts'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the transaction data at a different frequency, update here
+            ScheduleExpression: rate(1day)         
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:
+            ObjectPath: !Ref EmployeeText
+      DestinationFlowConfigList:
+       - ConnectorType: S3
+         DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+               FileType: JSON
+               AggregationConfig:
+                aggregationType: None
+               PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME        
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Material Attributes
+  MaterialAttributestoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      FlowName: material_attr
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0material_attr Material Attributes'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Incremental
+            ## If you wish to extract the transaction data at a different frequency, update here
+            ScheduleExpression: rate(1day)         
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:
+            ObjectPath: !Ref MaterialAttributes
+      DestinationFlowConfigList:
+       - ConnectorType: S3
+         DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+               FileType: JSON
+               AggregationConfig:
+                aggregationType: None
+               PrefixConfig: 
+                  PrefixFormat: HOUR
+                  PrefixType: PATH_AND_FILENAME        
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Material Text
+  MaterialTexttoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      FlowName: material_text
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0material_text Material Texts Description'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Incremental
+            ## If you wish to extract the transaction data at a different frequency, update here
+            ScheduleExpression: rate(1day)        
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:
+            #  Change this to your ObjectPath
+            ObjectPath: !Ref MaterialText
+      DestinationFlowConfigList:
+       - ConnectorType: S3
+         DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+               FileType: JSON
+               AggregationConfig:
+                aggregationType: None
+               PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME        
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+      - TaskType: Filter
+        SourceFields: 
+          - SPRAS
+        ConnectorOperator:
+          SAPOData: EQUAL_TO
+        TaskProperties:
+          - Key: VALUES
+            Value: "E"        
+
+  # Material Group Text
+  MaterialGroupTexttoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      ## This is the unique technical name for the flow, ideally name this related to the data being loaded
+      FlowName: material_group
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0MATL_GROUP_TEXT'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the masterdata more often than once daily, change the value here
+            ScheduleExpression: rate(1day)
+            ## Ensure your scheduled Start Time is in the future in EPOC format            
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:          
+            ObjectPath: !Ref MaterialGroupText            
+      DestinationFlowConfigList:
+      - ConnectorType: S3
+        DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+              FileType: JSON
+              AggregationConfig:
+                aggregationType: None
+              PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME                 
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+      - TaskType: Filter
+        SourceFields: 
+          - SPRAS
+        ConnectorOperator:
+          SAPOData: EQUAL_TO
+        TaskProperties:
+          - Key: VALUES
+            Value: "E"
+
+  # Material Group 1 Text
+  MaterialGroup1TexttoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      ## This is the unique technical name for the flow, ideally name this related to the data being loaded
+      FlowName: material_group_1
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0MATL_GRP_1'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the masterdata more often than once daily, change the value here
+            ScheduleExpression: rate(1day)
+            ## Ensure your scheduled Start Time is in the future in EPOC format            
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:          
+            ObjectPath: !Ref MaterialGroup1Text             
+      DestinationFlowConfigList:
+      - ConnectorType: S3
+        DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+              FileType: JSON
+              AggregationConfig:
+                aggregationType: None
+              PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME                 
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Material Group 2 Text
+  MaterialGroupText2toS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      ## This is the unique technical name for the flow, ideally name this related to the data being loaded
+      FlowName: material_group_2
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0MATL_GRP_2'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the masterdata more often than once daily, change the value here
+            ScheduleExpression: rate(1day)
+            ## Ensure your scheduled Start Time is in the future in EPOC format            
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:           
+            ObjectPath: !Ref MaterialGroup2Text           
+      DestinationFlowConfigList:
+      - ConnectorType: S3
+        DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+              FileType: JSON
+              AggregationConfig:
+                aggregationType: None
+              PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME                 
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+  
+  # Material Group 3 Text
+  MaterialGroup3TexttoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      ## This is the unique technical name for the flow, ideally name this related to the data being loaded
+      FlowName: material_group_3
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0MATL_GRP_3'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the masterdata more often than once daily, change the value here
+            ScheduleExpression: rate(1day)
+            ## Ensure your scheduled Start Time is in the future in EPOC format            
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:           
+            ObjectPath: !Ref MaterialGroup3Text           
+      DestinationFlowConfigList:
+      - ConnectorType: S3
+        DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+              FileType: JSON
+              AggregationConfig:
+                aggregationType: None
+              PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME                 
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Material Group 4
+  MaterialGroup4TexttoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      ## This is the unique technical name for the flow, ideally name this related to the data being loaded
+      FlowName: material_group_4
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0MATL_GRP_4'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the masterdata more often than once daily, change the value here
+            ScheduleExpression: rate(1day)
+            ## Ensure your scheduled Start Time is in the future in EPOC format            
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:          
+            ObjectPath: !Ref MaterialGroup4Text            
+      DestinationFlowConfigList:
+      - ConnectorType: S3
+        DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+              FileType: JSON
+              AggregationConfig:
+                aggregationType: None
+              PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME                 
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP
+
+  # Material Group 5
+  MaterialGroup5TexttoS3:
+    Type: AWS::AppFlow::Flow
+    Properties: 
+      ## This is the unique technical name for the flow, ideally name this related to the data being loaded
+      FlowName: material_group_5
+      FlowStatus: Active      
+      Description: 'Pull data from SAP and saves into S3 for 0MATL_GRP_5'
+      TriggerConfig:
+          TriggerType: Scheduled
+          TriggerProperties:
+            DataPullMode: Complete
+            ## If you wish to extract the masterdata more often than once daily, change the value here
+            ScheduleExpression: rate(1day)
+            ## Ensure your scheduled Start Time is in the future in EPOC format            
+            ScheduleStartTime: !Ref AppFlowSAPStartTime
+      SourceFlowConfig:
+        ConnectorProfileName: !Ref ConnectionName
+        ConnectorType: SAPOData
+        SourceConnectorProperties:
+          SAPOData:           
+            ObjectPath: !Ref MaterialGroup5Text            
+      DestinationFlowConfigList:
+      - ConnectorType: S3
+        DestinationConnectorProperties:
+          S3:
+            BucketName: !Ref DestinationS3BucketName
+            BucketPrefix: !Ref DestinationS3BucketPrefix
+            S3OutputFormatConfig:
+              FileType: JSON
+              AggregationConfig:
+                aggregationType: None
+              PrefixConfig: 
+                  PrefixFormat: DAY
+                  PrefixType: PATH_AND_FILENAME                 
+      Tasks:
+      - TaskType: Map_all
+        SourceFields: []
+        TaskProperties:
+        - Key: EXCLUDE_SOURCE_FIELDS_LIST
+          Value: '[]'
+        ConnectorOperator:
+          SAPOData: NO_OP                                    
+

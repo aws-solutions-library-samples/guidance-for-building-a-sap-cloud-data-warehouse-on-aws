@@ -1,0 +1,18 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "AWSGlueDDL",
+            "Effect": "Allow",
+            "Action": [
+                "glue:CreateTable",
+                "glue:UpdateTable"
+            ],
+            "Resource": [
+                "<arn_database_dbanme>",
+                "<arn_glue_catalog>",
+                "<arn_table_dbname>"
+            ]
+        }
+    ]
+}

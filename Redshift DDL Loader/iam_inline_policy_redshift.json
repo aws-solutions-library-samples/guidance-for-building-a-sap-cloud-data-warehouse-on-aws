@@ -1,0 +1,33 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "RedshiftDataAccess",
+            "Effect": "Allow",
+            "Action": [
+                "redshift-data:DescribeTable",
+                "redshift-data:BatchExecuteStatement",
+                "redshift-data:ExecuteStatement",
+                "redshift:GetClusterCredentials",
+                "redshift-data:DescribeStatement"
+            ],
+            "Resource": [
+                "<redshift_cluster_ARN>",
+                "<redshift_cluster_ARN>/<db_name>",
+                "<redshift_dbuser_ARN>/<db_user>",
+                "<redshift_dbname_ARN>/<db_name>"
+            ]
+        },
+        {
+            "Sid": "RedshiftDescribeAccess",
+            "Effect": "Allow",
+            "Action": "redshift-data:DescribeStatement",
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "redshift-data:statement-owner-iam-userid": "${aws:userid}"
+                }
+            }
+        }
+    ]
+}
