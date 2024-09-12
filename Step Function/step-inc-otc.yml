@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "CloudFormation Template to deploy Redshift cluster in preview, DDLs and stored procedures and Step Function for deployment"
+Description: "CloudFormation Template to deploy Redshift cluster in preview, DDLs and stored procedures and Step Function for deployment (SO9096)"
 Resources:
   StateMachineOrchRole:
     Type: 'AWS::IAM::Role'

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "CloudFormation Template to deploy Redshift step function for incremental load"
+Description: "CloudFormation Template to deploy Redshift step function for incremental load (SO9096)"
 Resources:
   StateMachineOrchRole:
     Type: 'AWS::IAM::Role'
