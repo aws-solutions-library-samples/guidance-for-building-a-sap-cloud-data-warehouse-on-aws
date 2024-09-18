@@ -1,8 +1,8 @@
-# Guidance for Data Warehousing Complementing SAP Solutions on AWS
+# Guidance for Building a SAP Cloud Data Warehouse on AWS
 
-## Table of Content (required)
+## Table of Content
 
-- [Guidance for Data Warehousing Complementing SAP Solutions on AWS](#guidance-for-data-warehousing-complementing-sap-solutions-on-aws)
+- [Guidance for Building a SAP Cloud Data Warehouse on AWS](#guidance-for-building-a-sap-cloud-data-warehouse-on-aws)
   - [Table of Content (required)](#table-of-content-required)
   - [Overview](#overview)
     - [Architecture](#architecture)
