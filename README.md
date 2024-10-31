@@ -3,7 +3,7 @@
 ## Table of Content
 
 - [Guidance for Building a SAP Cloud Data Warehouse on AWS](#guidance-for-building-a-sap-cloud-data-warehouse-on-aws)
-  - [Table of Content (required)](#table-of-content-required)
+  - [Table of Content](#table-of-content)
   - [Overview](#overview)
     - [Architecture](#architecture)
       - [Architecture components of the accelerators](#architecture-components-of-the-accelerators)
