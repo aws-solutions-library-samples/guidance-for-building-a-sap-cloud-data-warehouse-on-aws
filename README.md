@@ -12,7 +12,7 @@
   - [Prerequisites](#prerequisites)
   - [Deployment Steps](#deployment-steps)
       - [Accelerator implementation steps](#accelerator-implementation-steps)
-  - [Deployment Validation  (required)](#deployment-validation--required)
+  - [Deployment Validation](#deployment-validation)
   - [Usage](#usage)
   - [Cleanup](#cleanup)
   - [Disclaimer](#disclaimer)
@@ -160,7 +160,7 @@ Additional extractors, both transactional and master data can be added into your
     f.)  Connection to your Redshift cluster for Quicksight, and then the Cloudformation scripts for datasources. \
 
  
-## Deployment Validation  (required)
+## Deployment Validation
 
 
 ## Usage
